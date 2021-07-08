@@ -1,0 +1,5 @@
+*.o
+*.yuv
+*.bmp
+surface
+tags
