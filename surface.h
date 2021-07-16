@@ -22,27 +22,27 @@ typedef struct Surface {
 	unsigned int bpp;
 	unsigned int bytes_per_line;
 	void *data;
+	void (*setPixel)(struct Surface *s, int x, int y, unsigned int color);
+	unsigned int (*getPixel)(struct Surface *s, int x, int y);
+	void (*drawHLine)(struct Surface *,
+			int x, int y, unsigned int w, unsigned int color);
+	void (*drawVLine)(struct Surface *,
+			int x, int y, unsigned int h, unsigned int color);
 } Surface_t;
-
-/*****************************************************************************/
-
-static inline void setPixel_BPP8(
-		struct Surface *s, int x, int y, unsigned char color)
-{
-	unsigned char *bitmap = (unsigned char *)s->data;
-	bitmap[s->stride * y + x] = color;
-}
-
-static inline unsigned char getPixel_BPP8(struct Surface *s, int x, int y)
-{
-	unsigned char *bitmap = (unsigned char *)s->data;
-	return bitmap[s->stride * y + x];
-}
 
 /*****************************************************************************/
 
 struct Surface *createSurface(int width, int stride, int height, int bpp);
 void destroySurface(struct Surface *surface);
 void renderSurface_YUV420File(struct Surface *s, int fd);
+
+unsigned int getPixel(struct Surface *s, int x, int y);
+void setPixel(struct Surface *s, int x, int y, unsigned int color);
+void drawLine(struct Surface *s,
+		int x1, int y1, int x2, int y2, unsigned int color);
+void fillRect(struct Surface *s, int x, int y,
+		unsigned int width, unsigned int height, unsigned int color);
+void drawRect(struct Surface *s, int x, int y,
+		unsigned int width, unsigned int height, unsigned int color);
 
 #endif	/*__SURFACE_H__*/

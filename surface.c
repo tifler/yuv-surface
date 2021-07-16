@@ -14,7 +14,12 @@
 #include <unistd.h>
 #include <errno.h>
 #include "surface.h"
+#include "draw.h"
 #include "XDebug.h"
+
+/*****************************************************************************/
+
+#define	BITS_PER_BYTE						(8)
 
 /*****************************************************************************/
 
@@ -36,6 +41,26 @@ static int safeWrite(int fd, const void *buf, int size)
 	return wrcnt == size ? 0 : -1;
 }
 
+static void mapDrawingFunc(struct Surface *surface)
+{
+	switch (surface->bpp) {
+		case 1:
+			surface->setPixel = setPixel_BPP1;
+			surface->getPixel = getPixel_BPP1;
+			surface->drawHLine = drawHLine_BPP1;
+			surface->drawVLine = drawVLine_BPP1;
+			break;
+		case 8:
+			surface->setPixel = setPixel_BPP8;
+			surface->getPixel = getPixel_BPP8;
+			surface->drawHLine = drawHLine_BPP8;
+			surface->drawVLine = drawVLine_BPP8;
+			break;
+		default:
+			DIE("Not supported BPP.\n");
+			break;
+	}
+}
 
 /*****************************************************************************/
 
@@ -45,8 +70,7 @@ struct Surface *createSurface(int width, int stride, int height, int bpp)
 
 	ASSERT(width > 0);
 	ASSERT(height > 0);
-	ASSERT(bpp > 0);
-	ASSERT(bpp == 8);
+	ASSERT(bpp == 1 || bpp == 8);
 	ASSERT(stride >= width);
 
 	surface = (struct Surface *)malloc(sizeof(*surface));
@@ -55,9 +79,12 @@ struct Surface *createSurface(int width, int stride, int height, int bpp)
 	surface->stride = stride;
 	surface->height = height;
 	surface->bpp = bpp;
-	surface->bytes_per_line = stride;
+	surface->bytes_per_line =
+		ROUND_UP(stride * bpp, BITS_PER_BYTE) / BITS_PER_BYTE;
 	surface->data = calloc(surface->height, surface->bytes_per_line);
 	ASSERT(surface->data);
+
+	mapDrawingFunc(surface);
 
 	DBG("Surface: width=%d, height=%d, stride=%d, bpp=%d, bytes_per_line=%d, %dbytes\n",
 			surface->width,
@@ -78,7 +105,7 @@ void destroySurface(struct Surface *surface)
 	free(surface);
 }
 
-void renderSurface_YUV420File(struct Surface *s, int fd)
+static void renderSurface_YUV420File_BPP8(struct Surface *s, int fd)
 {
 	ASSERT(s);
 	ASSERT(s->bpp == 8);
@@ -99,3 +126,41 @@ void renderSurface_YUV420File(struct Surface *s, int fd)
 
 	free(cbuf);
 }
+
+static void renderSurface_YUV420File_BPP1(struct Surface *s, int fd)
+{
+	ASSERT(s);
+	ASSERT(s->bpp == 1);
+
+	unsigned char *ybuf = (unsigned char *)calloc(1, s->width);
+	ASSERT(ybuf);
+	unsigned char *cbuf = (unsigned char *)calloc(1, s->width);
+	ASSERT(cbuf);
+
+	// y
+	for (int y = 0; y < s->height; y++) {
+		for (int x = 0; x < s->width; x++) {
+			ybuf[x] = s->getPixel(s, x, y) ? 0xf0 : 0;
+		}
+		safeWrite(fd, ybuf, s->width);
+	}
+
+	// uv
+	for (int y = 0; y < (s->height + 1) / 2; y++) {
+		safeWrite(fd, cbuf, s->width);
+	}
+
+	free(cbuf);
+}
+
+void renderSurface_YUV420File(struct Surface *s, int fd)
+{
+	if (s->bpp == 1)
+		renderSurface_YUV420File_BPP1(s, fd);
+	else if (s->bpp == 8)
+		renderSurface_YUV420File_BPP8(s, fd);
+	else {
+		DIE("Unsupported surface");
+	}
+}
+

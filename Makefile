@@ -2,7 +2,7 @@ CC		:= gcc
 CFLAGS	:= -Wall -g
 CFLAGS	+= -DXDEBUG
 
-OBJS	+= main.o surface.o
+OBJS	+= main.o surface.o draw.o draw-bpp8.o draw-bpp1.o
 TARGET	:= surface
 
 .PHONY: clean tags
